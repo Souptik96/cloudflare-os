@@ -54,7 +54,7 @@ const type = (element: HTMLInputElement, value: string) => act(() => {
 
 const click = (element: HTMLElement) => act(() => { element.click() })
 
-describe('AddModelModal with a stored model', () => {
+describe('AddModelModal', () => {
   let root: Root | undefined
 
   afterEach(() => {
@@ -62,7 +62,7 @@ describe('AddModelModal with a stored model', () => {
     document.body.innerHTML = ''
   })
 
-  const render = async (mode: ModelModalMode) => {
+  const render = async (mode: ModelModalMode, chatModelsOnly = false) => {
     const updateModel = vi.fn<AuthenticatedApi['updateModel']>(async () => {})
     const addModel = vi.fn<AuthenticatedApi['addModel']>(async () => {})
     const api = { updateModel, addModel } as unknown as RpcStub<AuthenticatedApi>
@@ -72,6 +72,7 @@ describe('AddModelModal with a stored model', () => {
     await act(async () => root!.render(<AddModelModal
       visible
       mode={mode}
+      chatModelsOnly={chatModelsOnly}
       onCancel={() => {}}
       onSuccess={() => {}}
       authenticatedApi={api}
@@ -79,6 +80,16 @@ describe('AddModelModal with a stored model', () => {
     />))
     return { updateModel, addModel }
   }
+
+  // Onboarding picks the user's chat model, which a classifier can't be; the Providers page adds both.
+  it.each([false, true])('offers classifier models only without chatModelsOnly (chatModelsOnly: %s)', async (chatModelsOnly) => {
+    await render({ type: 'add' }, chatModelsOnly)
+    await click(document.body.querySelector<HTMLElement>('[role="combobox"]')!)
+
+    const options = Array.from(document.body.querySelectorAll('[role="option"]'), option => option.textContent)
+    expect(options).toContain('GLM 5.2 (Workers AI)')
+    expect(options.includes('Clef (Workers AI)')).toBe(!chatModelsOnly)
+  })
 
   it('sends withheld secrets back as null when they are left untouched', async () => {
     const { updateModel } = await render({ type: 'edit', source: { profile: PROFILE, config: CONFIG } })
