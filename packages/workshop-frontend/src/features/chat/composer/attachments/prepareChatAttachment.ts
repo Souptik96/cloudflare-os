@@ -54,13 +54,17 @@ export const prepareChatAttachment = async (
     // original filename extension.
     const outputMimeType = supportedOriginalType ? file.type : "image/jpeg";
     const quality = outputMimeType === "image/png" ? undefined : 0.85;
-    const blob = await canvasToBlob(canvas, outputMimeType, quality);
+    let blob = await canvasToBlob(canvas, outputMimeType, quality);
+    // PNG is lossless, so a photograph stays over the cap at any size; WebP keeps transparency.
+    if (outputMimeType === "image/png" && blob.size > MAX_CHAT_ATTACHMENT_BYTES) {
+      blob = await canvasToBlob(canvas, "image/webp", 0.85);
+    }
     if (blob.size > MAX_CHAT_ATTACHMENT_BYTES) {
       throw new Error(
         `Attachments must be ${formatAttachmentSize(MAX_CHAT_ATTACHMENT_BYTES)} or smaller.`,
       );
     }
-    return { blob, mimeType: outputMimeType };
+    return { blob, mimeType: blob.type || outputMimeType };
   } finally {
     bitmap.close();
   }
